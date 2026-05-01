@@ -50,37 +50,30 @@ public class RopeGenerator : MonoBehaviour
         }
     }
 
-    // วาด preview ใน Scene view ตอน edit mode
     void OnDrawGizmos()
     {
         if (!showGizmo) return;
 
-        // วาดจุดวงกลมตรงตำแหน่งจุดยึด
         Gizmos.color = gizmoColor;
         Gizmos.DrawSphere(transform.position, gizmoAnchorRadius);
 
-        // วาดวงกลมรอบๆ เพื่อให้สังเกตเห็นง่าย
         Gizmos.color = new Color(gizmoColor.r, gizmoColor.g, gizmoColor.b, 0.3f);
         Gizmos.DrawWireSphere(transform.position, gizmoAnchorRadius * 1.5f);
 
-        // วาดเส้นจำลองเชือกห้อยลงมา
         Gizmos.color = new Color(gizmoColor.r, gizmoColor.g, gizmoColor.b, 0.6f);
         Vector3 endPos = transform.position + Vector3.down * segmentSpacing * (segmentCount - 1);
         Gizmos.DrawLine(transform.position, endPos);
 
-        // วาดจุดเล็กๆ ตรงตำแหน่งของแต่ละ segment
         for (int i = 1; i < segmentCount; i++)
         {
             Vector3 segPos = transform.position + Vector3.down * segmentSpacing * i;
             Gizmos.DrawWireSphere(segPos, 0.08f);
         }
 
-        // วาดจุดปลายเชือก
         Gizmos.color = new Color(1f, 0.5f, 0.2f, 0.8f); // สีส้ม
         Gizmos.DrawSphere(endPos, 0.12f);
     }
 
-    // วาดเฉพาะตอน selected (เน้นชัดขึ้น)
     void OnDrawGizmosSelected()
     {
         if (!showGizmo) return;
