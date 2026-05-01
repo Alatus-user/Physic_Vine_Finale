@@ -36,6 +36,7 @@ public class PlayerMovement : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
         {
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
+            GameOver();
         }
 
         if (horizontalInput > 0.1f)
@@ -58,5 +59,12 @@ public class PlayerMovement : MonoBehaviour
             Gizmos.color = Color.yellow;
             Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
         }
+    }
+
+    public void GameOver()
+    {
+        CanMove = false;
+        rb.velocity = Vector2.zero;
+        Time.timeScale = 0f;
     }
 }
