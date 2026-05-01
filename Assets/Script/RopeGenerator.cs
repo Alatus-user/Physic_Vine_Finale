@@ -2,20 +2,14 @@ using UnityEngine;
 
 public class RopeGenerator : MonoBehaviour
 {
-    [Header("Rope Settings")]
-    [Tooltip("Prefab ของ RopeSegment")]
     public GameObject segmentPrefab;
 
-    [Tooltip("จำนวนข้อของเชือก")]
     public int segmentCount = 8;
 
-    [Tooltip("ระยะห่างระหว่างข้อ (หน่วย Unity)")]
     public float segmentSpacing = 1f;
 
-    [Header("Editor Visualization")]
-    [Tooltip("แสดง preview ของเชือกใน Scene view")]
     public bool showGizmo = true;
-    public Color gizmoColor = new Color(0.4f, 0.8f, 0.4f, 0.8f); // สีเขียว
+    public Color gizmoColor = new Color(0.4f, 0.8f, 0.4f, 0.8f); 
     public float gizmoAnchorRadius = 0.2f;
 
     void Start()
@@ -70,7 +64,7 @@ public class RopeGenerator : MonoBehaviour
             Gizmos.DrawWireSphere(segPos, 0.08f);
         }
 
-        Gizmos.color = new Color(1f, 0.5f, 0.2f, 0.8f); // สีส้ม
+        Gizmos.color = new Color(1f, 0.5f, 0.2f, 0.8f); 
         Gizmos.DrawSphere(endPos, 0.12f);
     }
 

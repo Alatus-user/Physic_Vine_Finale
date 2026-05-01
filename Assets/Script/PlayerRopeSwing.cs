@@ -2,42 +2,25 @@
 
 public class PlayerRopeSwing : MonoBehaviour
 {
-    [Header("Swing Force")]
-    [Tooltip("Force when swinging with A/D while attached")]
     public float swingForce = 25f;
 
-    [Tooltip("Initial impulse on attach to keep momentum flowing (Benji feel)")]
     public float attachMomentumBoost = 1.3f;
 
-    [Header("Release - Momentum Carry")]
-    [Tooltip("Multiplier on horizontal velocity (preserves forward momentum)")]
     public float releaseHorizontalMultiplier = 1.8f;
 
-    [Tooltip("Multiplier on vertical velocity (controls upward arc)")]
     public float releaseVerticalMultiplier = 1.2f;
 
-    [Tooltip("Minimum forward velocity guaranteed on release")]
     public float minReleaseVelocity = 10f;
 
-    [Header("Air Float - Carried Momentum")]
-    [Tooltip("Duration of reduced gravity after releasing (seconds)")]
     public float floatDuration = 0.6f;
 
-    [Tooltip("Gravity multiplier during float (0.3 = floaty, 1.0 = normal)")]
-    [Range(0.1f, 1f)]
     public float floatGravityScale = 0.4f;
 
-    [Tooltip("Air drag during float (0 = preserve momentum forever)")]
-    [Range(0f, 1f)]
     public float airDrag = 0.05f;
 
-    [Header("Rotation")]
-    [Tooltip("Rotate player to face swing direction")]
     public bool rotateWithRope = true;
     public float rotationSmoothSpeed = 10f;
 
-    [Header("Detection")]
-    [Tooltip("Cooldown to prevent instant re-attach after release")]
     public float reattachCooldown = 0.4f;
 
     private Rigidbody2D playerRb;
@@ -48,7 +31,6 @@ public class PlayerRopeSwing : MonoBehaviour
     private float nearestDistance = float.MaxValue;
     private float lastDetachTime = -999f;
 
-    // Momentum carry state
     private bool isFloating = false;
     private float floatTimer = 0f;
     private float originalGravityScale;
@@ -62,7 +44,6 @@ public class PlayerRopeSwing : MonoBehaviour
         playerRb = GetComponent<Rigidbody2D>();
         playerMovement = GetComponent<PlayerMovement>();
 
-        // Remember original physics settings
         originalGravityScale = playerRb.gravityScale;
         originalLinearDamping = playerRb.linearDamping;
     }
@@ -81,7 +62,6 @@ public class PlayerRopeSwing : MonoBehaviour
             }
         }
 
-        // While swinging: A/D adds swing force to the rope
         if (IsSwinging && attachedRope != null)
         {
             float swingInput = Input.GetAxisRaw("Horizontal");
@@ -96,7 +76,6 @@ public class PlayerRopeSwing : MonoBehaviour
             }
         }
 
-        // Handle float state (carried momentum after release)
         if (isFloating)
         {
             floatTimer -= Time.deltaTime;
@@ -149,7 +128,6 @@ public class PlayerRopeSwing : MonoBehaviour
 
     void AttachToRope(Rigidbody2D rope)
     {
-        // Cancel float state if attaching while floating
         if (isFloating)
         {
             EndFloat();
@@ -175,20 +153,16 @@ public class PlayerRopeSwing : MonoBehaviour
     {
         if (currentJoint == null) return;
 
-        // Capture swing velocity (tangent of swing arc)
         Vector2 swingVelocity = playerRb.linearVelocity;
 
         Destroy(currentJoint);
         currentJoint = null;
 
-        // Apply release velocity with separate X/Y multipliers
-        // This preserves natural swing arc - no forced upward boost
         Vector2 releaseVelocity = new Vector2(
             swingVelocity.x * releaseHorizontalMultiplier,
             swingVelocity.y * releaseVerticalMultiplier
         );
 
-        // Guarantee minimum forward velocity in swing direction
         float horizontalSign = Mathf.Sign(releaseVelocity.x);
         if (Mathf.Abs(releaseVelocity.x) < minReleaseVelocity && horizontalSign != 0)
         {
@@ -197,11 +171,9 @@ public class PlayerRopeSwing : MonoBehaviour
 
         playerRb.linearVelocity = releaseVelocity;
 
-        // Reset rotation
         playerRb.constraints = RigidbodyConstraints2D.FreezeRotation;
         transform.rotation = Quaternion.identity;
 
-        // START FLOAT - this is the "carried momentum" feel
         StartFloat();
 
         if (playerMovement != null) playerMovement.CanMove = true;
@@ -217,10 +189,8 @@ public class PlayerRopeSwing : MonoBehaviour
         isFloating = true;
         floatTimer = floatDuration;
 
-        // Reduce gravity so player floats forward longer
         playerRb.gravityScale = originalGravityScale * floatGravityScale;
 
-        // Add slight air drag so momentum naturally decays
         playerRb.linearDamping = airDrag;
     }
 
@@ -229,12 +199,10 @@ public class PlayerRopeSwing : MonoBehaviour
         isFloating = false;
         floatTimer = 0f;
 
-        // Restore normal physics
         playerRb.gravityScale = originalGravityScale;
         playerRb.linearDamping = originalLinearDamping;
     }
 
-    // Cancel float when player lands on ground
     void OnCollisionEnter2D(Collision2D collision)
     {
         if (isFloating && collision.gameObject.layer == LayerMask.NameToLayer("Ground"))
