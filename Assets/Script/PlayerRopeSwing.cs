@@ -1,8 +1,11 @@
 ﻿using UnityEngine;
 
+
 public class PlayerRopeSwing : MonoBehaviour
 {
-    public float swingForce = 25f;
+    [Header("Swing Acceleration (F = ma)")]
+    [Tooltip("Tangential acceleration applied to rope when swinging (m/s^2)")]
+    public float swingAcceleration = 25f;
 
     public float attachMomentumBoost = 1.3f;
 
@@ -12,20 +15,28 @@ public class PlayerRopeSwing : MonoBehaviour
 
     public float minReleaseVelocity = 10f;
 
+    [Header("Air Control - Mid-Air Movement (F = ma)")]
+    [Tooltip("Enable horizontal control while in air after release")]
     public bool enableAirControl = true;
 
-    public float airControlForce = 20f;
+    [Tooltip("Horizontal acceleration in air when pressing A/D (m/s^2)")]
+    public float airAcceleration = 20f;
 
     public float maxAirSpeed = 20f;
 
     public float airControlDuration = 0f;
 
+    [Header("Air Float - Carried Momentum (Air Resistance)")]
     public float floatDuration = 0.6f;
 
+    [Range(0.1f, 1f)]
     public float floatGravityScale = 0.4f;
 
+    [Tooltip("Air resistance coefficient during float (linear damping)")]
+    [Range(0f, 1f)]
     public float airDrag = 0f;
 
+    [Header("Rotation")]
     public bool rotateWithRope = true;
     public float rotationSmoothSpeed = 10f;
 
@@ -73,12 +84,13 @@ public class PlayerRopeSwing : MonoBehaviour
             }
         }
 
+        // Apply swing force using F = ma while attached
         if (IsSwinging && attachedRope != null)
         {
             float swingInput = Input.GetAxisRaw("Horizontal");
             if (Mathf.Abs(swingInput) > 0.1f)
             {
-                attachedRope.AddForce(Vector2.right * swingInput * swingForce, ForceMode2D.Force);
+                ApplySwingForce(swingInput);
             }
 
             if (rotateWithRope)
@@ -108,21 +120,49 @@ public class PlayerRopeSwing : MonoBehaviour
 
     void FixedUpdate()
     {
+        // Mid-air control after release using F = ma
         if (hasAirControl && !IsSwinging)
         {
             float airInput = Input.GetAxisRaw("Horizontal");
 
             if (Mathf.Abs(airInput) > 0.1f)
             {
-                Vector2 currentVel = playerRb.linearVelocity;
-
-                float targetX = currentVel.x + (airInput * airControlForce * Time.fixedDeltaTime);
-
-                targetX = Mathf.Clamp(targetX, -maxAirSpeed, maxAirSpeed);
-
-                playerRb.linearVelocity = new Vector2(targetX, currentVel.y);
+                ApplyAirControlForce(airInput);
             }
+        }
+    }
 
+    private void ApplySwingForce(float input)
+    {
+        // F = m * a
+        // m = mass of the attached rope segment
+        // a = swingAcceleration (m/s^2) in direction of input
+        float mass = attachedRope.mass;
+        float acceleration = swingAcceleration;
+        Vector2 forceDirection = Vector2.right * input;
+
+        Vector2 force = mass * acceleration * forceDirection; // F = ma
+
+        attachedRope.AddForce(force, ForceMode2D.Force);
+    }
+
+    private void ApplyAirControlForce(float input)
+    {
+        // F = m * a
+        // m = mass of player
+        // a = airAcceleration (m/s^2) in direction of input
+        float mass = playerRb.mass;
+        float acceleration = airAcceleration;
+        Vector2 forceDirection = Vector2.right * input;
+
+        Vector2 force = mass * acceleration * forceDirection; // F = ma
+
+        float currentSpeed = playerRb.linearVelocity.x;
+        bool sameDirection = Mathf.Sign(currentSpeed) == Mathf.Sign(input);
+
+        if (!sameDirection || Mathf.Abs(currentSpeed) < maxAirSpeed)
+        {
+            playerRb.AddForce(force, ForceMode2D.Force);
         }
     }
 
@@ -180,6 +220,7 @@ public class PlayerRopeSwing : MonoBehaviour
         currentJoint.anchor = Vector2.zero;
         currentJoint.connectedAnchor = Vector2.zero;
 
+
         Vector2 momentum = playerRb.linearVelocity * attachMomentumBoost;
         rope.linearVelocity = momentum;
 
@@ -195,6 +236,7 @@ public class PlayerRopeSwing : MonoBehaviour
         Destroy(currentJoint);
         currentJoint = null;
 
+ 
         Vector2 releaseVelocity = new Vector2(
             swingVelocity.x * releaseHorizontalMultiplier,
             swingVelocity.y * releaseVerticalMultiplier
@@ -229,6 +271,7 @@ public class PlayerRopeSwing : MonoBehaviour
 
     void StartFloat()
     {
+
         isFloating = true;
         floatTimer = floatDuration;
 
@@ -247,14 +290,7 @@ public class PlayerRopeSwing : MonoBehaviour
 
     void OnCollisionEnter2D(Collision2D collision)
     {
-        if (isFloating)
-        {
-            EndFloat();
-        }
-
-        if (hasAirControl)
-        {
-            hasAirControl = false;
-        }
+        if (isFloating) EndFloat();
+        if (hasAirControl) hasAirControl = false;
     }
 }
