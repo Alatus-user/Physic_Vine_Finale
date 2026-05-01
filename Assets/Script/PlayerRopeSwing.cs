@@ -9,15 +9,27 @@ public class PlayerRopeSwing : MonoBehaviour
     [Tooltip("Initial impulse on attach to keep momentum flowing (Benji feel)")]
     public float attachMomentumBoost = 1.3f;
 
-    [Header("Release")]
-    [Tooltip("Multiplier on velocity when releasing (Benji feel = 1.4 to 1.8)")]
-    public float releaseMultiplier = 1.6f;
+    [Header("Release - Momentum Carry")]
+    [Tooltip("Multiplier on horizontal velocity (preserves forward momentum)")]
+    public float releaseHorizontalMultiplier = 1.8f;
 
-    [Tooltip("Extra upward boost on release")]
-    public float releaseUpwardBoost = 4f;
+    [Tooltip("Multiplier on vertical velocity (controls upward arc)")]
+    public float releaseVerticalMultiplier = 1.2f;
 
     [Tooltip("Minimum forward velocity guaranteed on release")]
-    public float minReleaseVelocity = 8f;
+    public float minReleaseVelocity = 10f;
+
+    [Header("Air Float - Carried Momentum")]
+    [Tooltip("Duration of reduced gravity after releasing (seconds)")]
+    public float floatDuration = 0.6f;
+
+    [Tooltip("Gravity multiplier during float (0.3 = floaty, 1.0 = normal)")]
+    [Range(0.1f, 1f)]
+    public float floatGravityScale = 0.4f;
+
+    [Tooltip("Air drag during float (0 = preserve momentum forever)")]
+    [Range(0f, 1f)]
+    public float airDrag = 0.05f;
 
     [Header("Rotation")]
     [Tooltip("Rotate player to face swing direction")]
@@ -36,17 +48,27 @@ public class PlayerRopeSwing : MonoBehaviour
     private float nearestDistance = float.MaxValue;
     private float lastDetachTime = -999f;
 
+    // Momentum carry state
+    private bool isFloating = false;
+    private float floatTimer = 0f;
+    private float originalGravityScale;
+    private float originalLinearDamping;
+
     public bool IsSwinging => currentJoint != null;
+    public bool IsFloating => isFloating;
 
     void Start()
     {
         playerRb = GetComponent<Rigidbody2D>();
         playerMovement = GetComponent<PlayerMovement>();
+
+        // Remember original physics settings
+        originalGravityScale = playerRb.gravityScale;
+        originalLinearDamping = playerRb.linearDamping;
     }
 
     void Update()
     {
-        // Press Space: attach if near rope, detach if already swinging
         if (Input.GetKeyDown(KeyCode.Space))
         {
             if (IsSwinging)
@@ -57,7 +79,6 @@ public class PlayerRopeSwing : MonoBehaviour
             {
                 AttachToRope(nearestRope);
             }
-            // If not near rope, Space falls through to PlayerMovement (jump)
         }
 
         // While swinging: A/D adds swing force to the rope
@@ -69,17 +90,26 @@ public class PlayerRopeSwing : MonoBehaviour
                 attachedRope.AddForce(Vector2.right * swingInput * swingForce, ForceMode2D.Force);
             }
 
-            // Rotate player to align with rope (Benji style)
             if (rotateWithRope)
             {
                 RotatePlayerWithRope();
+            }
+        }
+
+        // Handle float state (carried momentum after release)
+        if (isFloating)
+        {
+            floatTimer -= Time.deltaTime;
+
+            if (floatTimer <= 0f)
+            {
+                EndFloat();
             }
         }
     }
 
     void RotatePlayerWithRope()
     {
-        // Calculate angle from attached rope to player
         Vector2 ropeToPlayer = (Vector2)transform.position - attachedRope.position;
         float angle = Mathf.Atan2(ropeToPlayer.y, ropeToPlayer.x) * Mathf.Rad2Deg + 90f;
 
@@ -89,7 +119,6 @@ public class PlayerRopeSwing : MonoBehaviour
 
     void OnTriggerStay2D(Collider2D other)
     {
-        // Find the nearest rope segment
         if (other.CompareTag("Rope") && !IsSwinging)
         {
             float dist = Vector2.Distance(transform.position, other.transform.position);
@@ -112,7 +141,6 @@ public class PlayerRopeSwing : MonoBehaviour
 
     void LateUpdate()
     {
-        // Reset distance tracking each frame to find newest closest segment
         if (!IsSwinging)
         {
             nearestDistance = float.MaxValue;
@@ -121,21 +149,22 @@ public class PlayerRopeSwing : MonoBehaviour
 
     void AttachToRope(Rigidbody2D rope)
     {
-        // Disable normal movement
+        // Cancel float state if attaching while floating
+        if (isFloating)
+        {
+            EndFloat();
+        }
+
         if (playerMovement != null) playerMovement.CanMove = false;
 
-        // Allow rotation while swinging
         playerRb.constraints = RigidbodyConstraints2D.None;
 
-        // Create joint connecting player to rope segment
         currentJoint = gameObject.AddComponent<HingeJoint2D>();
         currentJoint.connectedBody = rope;
         currentJoint.autoConfigureConnectedAnchor = false;
         currentJoint.anchor = Vector2.zero;
         currentJoint.connectedAnchor = Vector2.zero;
 
-        // Transfer player momentum to rope WITH boost
-        // This is the key Benji Bananas feel - rope keeps moving in direction player came from
         Vector2 momentum = playerRb.linearVelocity * attachMomentumBoost;
         rope.linearVelocity = momentum;
 
@@ -146,20 +175,20 @@ public class PlayerRopeSwing : MonoBehaviour
     {
         if (currentJoint == null) return;
 
-        // Capture current swing velocity (tangent to swing arc)
+        // Capture swing velocity (tangent of swing arc)
         Vector2 swingVelocity = playerRb.linearVelocity;
 
         Destroy(currentJoint);
         currentJoint = null;
 
-        // Benji-style release:
-        // 1. Multiply current velocity (preserves swing energy)
-        // 2. Add upward boost (more dramatic arc)
-        // 3. Guarantee minimum forward velocity
-        Vector2 releaseVelocity = swingVelocity * releaseMultiplier;
-        releaseVelocity.y += releaseUpwardBoost;
+        // Apply release velocity with separate X/Y multipliers
+        // This preserves natural swing arc - no forced upward boost
+        Vector2 releaseVelocity = new Vector2(
+            swingVelocity.x * releaseHorizontalMultiplier,
+            swingVelocity.y * releaseVerticalMultiplier
+        );
 
-        // Ensure minimum horizontal speed in swing direction
+        // Guarantee minimum forward velocity in swing direction
         float horizontalSign = Mathf.Sign(releaseVelocity.x);
         if (Mathf.Abs(releaseVelocity.x) < minReleaseVelocity && horizontalSign != 0)
         {
@@ -168,17 +197,49 @@ public class PlayerRopeSwing : MonoBehaviour
 
         playerRb.linearVelocity = releaseVelocity;
 
-        // Re-freeze rotation and reset
+        // Reset rotation
         playerRb.constraints = RigidbodyConstraints2D.FreezeRotation;
         transform.rotation = Quaternion.identity;
 
-        // Restore movement
+        // START FLOAT - this is the "carried momentum" feel
+        StartFloat();
+
         if (playerMovement != null) playerMovement.CanMove = true;
 
-        // Reset state
         lastDetachTime = Time.time;
         attachedRope = null;
         nearestRope = null;
         nearestDistance = float.MaxValue;
+    }
+
+    void StartFloat()
+    {
+        isFloating = true;
+        floatTimer = floatDuration;
+
+        // Reduce gravity so player floats forward longer
+        playerRb.gravityScale = originalGravityScale * floatGravityScale;
+
+        // Add slight air drag so momentum naturally decays
+        playerRb.linearDamping = airDrag;
+    }
+
+    void EndFloat()
+    {
+        isFloating = false;
+        floatTimer = 0f;
+
+        // Restore normal physics
+        playerRb.gravityScale = originalGravityScale;
+        playerRb.linearDamping = originalLinearDamping;
+    }
+
+    // Cancel float when player lands on ground
+    void OnCollisionEnter2D(Collision2D collision)
+    {
+        if (isFloating && collision.gameObject.layer == LayerMask.NameToLayer("Ground"))
+        {
+            EndFloat();
+        }
     }
 }
