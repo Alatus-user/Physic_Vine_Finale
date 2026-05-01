@@ -5,6 +5,7 @@ TagManager:
   serializedVersion: 3
   tags:
   - Rope
+  - Coin
   layers:
   - Default
   - TransparentFX
