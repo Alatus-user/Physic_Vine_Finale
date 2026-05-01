@@ -12,11 +12,19 @@ public class PlayerRopeSwing : MonoBehaviour
 
     public float minReleaseVelocity = 10f;
 
+    public bool enableAirControl = true;
+
+    public float airControlForce = 20f;
+
+    public float maxAirSpeed = 20f;
+
+    public float airControlDuration = 0f;
+
     public float floatDuration = 0.6f;
 
     public float floatGravityScale = 0.4f;
 
-    public float airDrag = 0.05f;
+    public float airDrag = 0f;
 
     public bool rotateWithRope = true;
     public float rotationSmoothSpeed = 10f;
@@ -33,11 +41,14 @@ public class PlayerRopeSwing : MonoBehaviour
 
     private bool isFloating = false;
     private float floatTimer = 0f;
+    private bool hasAirControl = false;
+    private float airControlTimer = 0f;
     private float originalGravityScale;
     private float originalLinearDamping;
 
     public bool IsSwinging => currentJoint != null;
     public bool IsFloating => isFloating;
+    public bool HasAirControl => hasAirControl;
 
     void Start()
     {
@@ -79,11 +90,39 @@ public class PlayerRopeSwing : MonoBehaviour
         if (isFloating)
         {
             floatTimer -= Time.deltaTime;
-
             if (floatTimer <= 0f)
             {
                 EndFloat();
             }
+        }
+
+        if (hasAirControl && airControlDuration > 0f)
+        {
+            airControlTimer -= Time.deltaTime;
+            if (airControlTimer <= 0f)
+            {
+                hasAirControl = false;
+            }
+        }
+    }
+
+    void FixedUpdate()
+    {
+        if (hasAirControl && !IsSwinging)
+        {
+            float airInput = Input.GetAxisRaw("Horizontal");
+
+            if (Mathf.Abs(airInput) > 0.1f)
+            {
+                Vector2 currentVel = playerRb.linearVelocity;
+
+                float targetX = currentVel.x + (airInput * airControlForce * Time.fixedDeltaTime);
+
+                targetX = Mathf.Clamp(targetX, -maxAirSpeed, maxAirSpeed);
+
+                playerRb.linearVelocity = new Vector2(targetX, currentVel.y);
+            }
+
         }
     }
 
@@ -128,10 +167,8 @@ public class PlayerRopeSwing : MonoBehaviour
 
     void AttachToRope(Rigidbody2D rope)
     {
-        if (isFloating)
-        {
-            EndFloat();
-        }
+        if (isFloating) EndFloat();
+        hasAirControl = false;
 
         if (playerMovement != null) playerMovement.CanMove = false;
 
@@ -176,6 +213,12 @@ public class PlayerRopeSwing : MonoBehaviour
 
         StartFloat();
 
+        if (enableAirControl)
+        {
+            hasAirControl = true;
+            airControlTimer = airControlDuration;
+        }
+
         if (playerMovement != null) playerMovement.CanMove = true;
 
         lastDetachTime = Time.time;
@@ -190,7 +233,6 @@ public class PlayerRopeSwing : MonoBehaviour
         floatTimer = floatDuration;
 
         playerRb.gravityScale = originalGravityScale * floatGravityScale;
-
         playerRb.linearDamping = airDrag;
     }
 
@@ -205,9 +247,14 @@ public class PlayerRopeSwing : MonoBehaviour
 
     void OnCollisionEnter2D(Collision2D collision)
     {
-        if (isFloating && collision.gameObject.layer == LayerMask.NameToLayer("Ground"))
+        if (isFloating)
         {
             EndFloat();
+        }
+
+        if (hasAirControl)
+        {
+            hasAirControl = false;
         }
     }
 }

@@ -16,9 +16,7 @@ public class Ui_Mananger : MonoBehaviour
                 
         }
     }
-    // Start is called once before the first execution of Update after the MonoBehaviour is creat
 
-    // Update is called once per frame
     void Update()
     {
         if (playerMovement != null && !playerMovement.CanMove)
